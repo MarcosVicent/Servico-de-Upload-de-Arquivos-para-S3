@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serviço de Upload de Arquivos para S3 via API Gateway e Lambda em Node.js
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Nome do projeto, usado para prefixar recursos
+    Default: MyFileUploadService
+  BucketNamePrefix:
+    Type: String
+    Description: Prefixo para o nome do bucket S3. O nome final será "prefix-randomid"
+    Default: my-upload-bucket
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        LOG_LEVEL: INFO
+
+Resources:
+  UploadsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${BucketNamePrefix}-${AWS::AccountId}"
+      AccessControl: Private
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref AWS::StackName
+    DeletionPolicy: Retain
+
+  UploadFileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/uploadFile.handler
+      CodeUri: .
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref UploadsBucket
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub "arn:aws:s3:::${UploadsBucket}"
+              - !Sub "arn:aws:s3:::${UploadsBucket}/*"
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref UploadsBucket
+      Events:
+        ApiUpload:
+          Type: Api
+          Properties:
+            Path: /upload
+            Method: post
+            RestApiId: !Ref MyFileUploadApi
+
+  MyFileUploadApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          title: !Ref AWS::StackName
+        paths:
+          /upload:
+            post:
+              produces:
+                - application/json
+              parameters:
+                - in: body
+                  name: body
+                  schema:
+                    type: object
+                    required:
+                      - fileName
+                      - fileContent
+                      - contentType
+                    properties:
+                      fileName:
+                        type: string
+                        description: Nome do arquivo (ex: myimage.jpg)
+                      fileContent:
+                        type: string
+                        description: Conteúdo do arquivo em base64
+                      contentType:
+                        type: string
+                        description: Tipo de conteúdo (ex: image/jpeg)
+              responses:
+                '200':
+                  description: 'Upload bem-sucedido'
+                '400':
+                  description: 'Requisição inválida'
+                '500':
+                  description: 'Erro interno do servidor'
+      
+      Cors:
+        AllowMethods: "'POST'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+        MaxAge: "'600'"
+
+Outputs:
+  UploadApiUrl:
+    Description: "URL do endpoint da API Gateway para upload de arquivos"
+    Value: !Sub "https://${MyFileUploadApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/upload"

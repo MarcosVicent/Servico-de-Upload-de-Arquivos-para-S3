@@ -1,0 +1,17 @@
+{
+  "name": "file-upload-service",
+  "version": "1.0.0",
+  "description": "Serviço de upload de arquivos para S3",
+  "main": "src/handlers/uploadFile.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1643.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {},
+  "keywords": ["aws", "lambda", "s3", "nodejs", "serverless", "api-gateway"],
+  "author": "Marcos Vicente",
+  "license": "MIT"
+}
